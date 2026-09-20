@@ -104,7 +104,7 @@ def train_and_log(config: dict, df, train_idx, test_idx) -> Pipeline:
         mlflow.log_param("numeric_features", config["numeric_features"])
         mlflow.log_params(config["estimator"].get_params())
         mlflow.log_metrics(metrics)
-        mlflow.sklearn.log_model(pipeline, name="model")
+        mlflow.sklearn.log_model(pipeline, name="model",skops_trusted_types=["numpy.dtype", "sklearn.tree._tree.Tree"])
 
     return pipeline
 def get_config_by_name(name: str) -> dict:
