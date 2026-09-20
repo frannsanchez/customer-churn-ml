@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Datos y modelos (se versionan con DVC, no con Git)
+data/raw/*
+data/processed/*
+data/reference/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/reference/.gitkeep
+models/*
+!models/.gitkeep
+
+# MLflow / DVC locales
+mlruns/
+.dvc/cache/
+
+# Entornos y variables sensibles
+.env
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
