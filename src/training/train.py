@@ -1,3 +1,4 @@
+import argparse
 import mlflow
 import mlflow.sklearn
 from sklearn.pipeline import Pipeline
@@ -103,19 +104,38 @@ def train_and_log(config: dict, df, train_idx, test_idx) -> Pipeline:
         mlflow.log_param("numeric_features", config["numeric_features"])
         mlflow.log_params(config["estimator"].get_params())
         mlflow.log_metrics(metrics)
-        mlflow.sklearn.log_model(pipeline, artifact_path="model")
+        mlflow.sklearn.log_model(pipeline, name="model")
 
     return pipeline
+def get_config_by_name(name: str) -> dict:
+    for config in MODEL_CONFIGS:
+        if config["name"] == name:
+            return config
+    disponibles = ", ".join(c["name"] for c in MODEL_CONFIGS)
+    raise ValueError(f"No existe el experimento '{name}'. Disponibles: {disponibles}")
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--experiment",
+        type=str,
+        default=None,
+        help="Nombre de un experimento puntual (ver MODEL_CONFIGS). Si no se pasa, corre los 10.",
+    )
+    args = parser.parse_args()
+
     mlflow.set_experiment(EXPERIMENT_NAME)
 
     df = load_raw_data(DATA_PATH)
     train_idx, test_idx = get_train_test_indices(df)
 
-    for config in MODEL_CONFIGS:
+    if args.experiment:
+        config = get_config_by_name(args.experiment)
         train_and_log(config, df, train_idx, test_idx)
+    else:
+        for config in MODEL_CONFIGS:
+            train_and_log(config, df, train_idx, test_idx)
 
 
 if __name__ == "__main__":
