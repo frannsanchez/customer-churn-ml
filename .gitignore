@@ -17,6 +17,7 @@ models/*
 
 # MLflow / DVC locales
 mlruns/
+mlflow.db
 .dvc/cache/
 
 # Entornos y variables sensibles

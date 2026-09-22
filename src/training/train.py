@@ -6,10 +6,17 @@ from sklearn.dummy import DummyClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-
 from src.data.crear_dataset import load_raw_data, get_train_test_indices, get_xy, RANDOM_STATE
 from src.features.build_features import build_preprocessor
 from src.evaluation.evaluate import compute_metrics, print_metrics, print_confusion_matrix
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+logger = logging.getLogger(__name__)
 
 DATA_PATH = "data/raw/customer_churn_historical.csv"
 EXPERIMENT_NAME = "customer-churn"
@@ -80,6 +87,7 @@ MODEL_CONFIGS = [
 
 
 def train_and_log(config: dict, df, train_idx, test_idx) -> Pipeline:
+    logger.info("Iniciando experimento: %s", config["name"])
     features = config["categorical_features"] + config["numeric_features"]
     X_train, y_train = get_xy(df, train_idx, features)
     X_test, y_test = get_xy(df, test_idx, features)
@@ -100,12 +108,22 @@ def train_and_log(config: dict, df, train_idx, test_idx) -> Pipeline:
         print_metrics(config["name"], metrics)
         print_confusion_matrix(y_test, y_pred)
 
+        logger.info(
+    "Experimento %s - Precision: %.4f - Recall: %.4f - F1: %.4f - ROC-AUC: %.4f",
+    config["name"],
+    metrics["precision"],
+    metrics["recall"],
+    metrics["f1"],
+    metrics["roc_auc"],
+)
+
         mlflow.log_param("categorical_features", config["categorical_features"])
         mlflow.log_param("numeric_features", config["numeric_features"])
         mlflow.log_params(config["estimator"].get_params())
         mlflow.log_metrics(metrics)
         mlflow.sklearn.log_model(pipeline, name="model",skops_trusted_types=["numpy.dtype", "sklearn.tree._tree.Tree"])
 
+        logger.info("Experimento finalizado: %s", config["name"])
     return pipeline
 def get_config_by_name(name: str) -> dict:
     for config in MODEL_CONFIGS:
