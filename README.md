@@ -122,7 +122,7 @@ MLflow → seguimiento de experimentos
 
 De esta manera, el proyecto puede reconstruir el entorno de trabajo a partir del código versionado y de la versión correspondiente de los datos.
 
-### Crear el entorno virtual
+## Crear el entorno virtual
 
 python -m venv .venv
 .venv\Scripts\activate
