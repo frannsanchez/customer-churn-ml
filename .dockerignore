@@ -1,0 +1,18 @@
+# Solo entra a la imagen lo que copia el Dockerfile; esto achica el contexto
+# y evita filtrar secretos o datos.
+.git
+.github
+.dvc
+.env
+.env.*
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+mlruns/
+mlflow.db
+data/
+notebooks/
+tests/
+*.md

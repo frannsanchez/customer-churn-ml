@@ -1,0 +1,10 @@
+services:
+  api:
+    build: .
+    image: customer-churn-api:local
+    container_name: customer-churn-api
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    restart: unless-stopped
