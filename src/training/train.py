@@ -22,12 +22,22 @@ logger = logging.getLogger(__name__)
 
 DATA_PATH = "data/raw/customer_churn_historical.csv"
 EXPERIMENT_NAME = "customer-churn"
+REGISTERED_MODEL_NAME = "customer-churn-model"
 
 
 def get_data_version(data_path: str = DATA_PATH) -> str:
     """Hash md5 del dataset según su archivo .dvc (identifica la versión de datos usada)."""
     with open(f"{data_path}.dvc") as f:
         return yaml.safe_load(f)["outs"][0]["md5"]
+
+# Todas las variables disponibles (customerID se descarta en load_raw_data)
+ALL_CATEGORICAL = [
+    "gender", "Partner", "Dependents", "PhoneService", "MultipleLines",
+    "InternetService", "OnlineSecurity", "OnlineBackup", "DeviceProtection",
+    "TechSupport", "StreamingTV", "StreamingMovies", "Contract",
+    "PaperlessBilling", "PaymentMethod",
+]
+ALL_NUMERIC = ["SeniorCitizen", "tenure", "MonthlyCharges", "TotalCharges"]
 
 MODEL_CONFIGS = [
     {
@@ -90,10 +100,42 @@ MODEL_CONFIGS = [
         "numeric_features": ["TotalCharges", "MonthlyCharges"],
         "estimator": RandomForestClassifier(random_state=RANDOM_STATE),
     },
+    # A partir de acá: todas las variables. class_weight="balanced" compensa el
+    # desbalance (26% churn) para no sacrificar recall: un falso negativo es un
+    # cliente que se va sin que se intente retenerlo.
+    {
+        "name": "exp11_logistic_regression_all",
+        "categorical_features": ALL_CATEGORICAL,
+        "numeric_features": ALL_NUMERIC,
+        "estimator": LogisticRegression(max_iter=1000),
+    },
+    {
+        "name": "exp12_logistic_regression_all_balanced",
+        "categorical_features": ALL_CATEGORICAL,
+        "numeric_features": ALL_NUMERIC,
+        "estimator": LogisticRegression(max_iter=1000, class_weight="balanced"),
+    },
+    {
+        "name": "exp13_decision_tree_all_balanced",
+        "categorical_features": ALL_CATEGORICAL,
+        "numeric_features": ALL_NUMERIC,
+        "estimator": DecisionTreeClassifier(
+            max_depth=5, class_weight="balanced", random_state=RANDOM_STATE
+        ),
+    },
+    {
+        "name": "exp14_random_forest_all_balanced",
+        "categorical_features": ALL_CATEGORICAL,
+        "numeric_features": ALL_NUMERIC,
+        "estimator": RandomForestClassifier(
+            n_estimators=300, max_depth=10, min_samples_leaf=5,
+            class_weight="balanced", random_state=RANDOM_STATE,
+        ),
+    },
 ]
 
 
-def train_and_log(config: dict, df, train_idx, test_idx) -> Pipeline:
+def train_and_log(config: dict, df, train_idx, test_idx, register: bool = False) -> Pipeline:
     logger.info("Iniciando experimento: %s", config["name"])
     features = config["categorical_features"] + config["numeric_features"]
     X_train, y_train = get_xy(df, train_idx, features)
@@ -132,7 +174,13 @@ def train_and_log(config: dict, df, train_idx, test_idx) -> Pipeline:
         mlflow.log_param("numeric_features", config["numeric_features"])
         mlflow.log_params(config["estimator"].get_params())
         mlflow.log_metrics(metrics)
-        mlflow.sklearn.log_model(pipeline, name="model",skops_trusted_types=["numpy.dtype", "sklearn.tree._tree.Tree"])
+        mlflow.sklearn.log_model(
+            pipeline,
+            name="model",
+            skops_trusted_types=["numpy.dtype", "sklearn.tree._tree.Tree"],
+            # Solo el modelo candidato elegido se registra en el Model Registry
+            registered_model_name=REGISTERED_MODEL_NAME if register else None,
+        )
 
         logger.info("Experimento finalizado: %s", config["name"])
     return pipeline
@@ -150,9 +198,16 @@ def main():
         "--experiment",
         type=str,
         default=None,
-        help="Nombre de un experimento puntual (ver MODEL_CONFIGS). Si no se pasa, corre los 10.",
+        help="Nombre de un experimento puntual (ver MODEL_CONFIGS). Si no se pasa, corre todos.",
+    )
+    parser.add_argument(
+        "--register",
+        action="store_true",
+        help=f"Registra el modelo en el Model Registry como '{REGISTERED_MODEL_NAME}'. Requiere --experiment.",
     )
     args = parser.parse_args()
+    if args.register and not args.experiment:
+        parser.error("--register requiere indicar --experiment (solo se registra el modelo candidato)")
 
     # Credenciales y tracking URI de DagsHub se leen del archivo .env (ver .env.example)
     load_dotenv()
@@ -164,7 +219,7 @@ def main():
 
     if args.experiment:
         config = get_config_by_name(args.experiment)
-        train_and_log(config, df, train_idx, test_idx)
+        train_and_log(config, df, train_idx, test_idx, register=args.register)
     else:
         for config in MODEL_CONFIGS:
             train_and_log(config, df, train_idx, test_idx)
