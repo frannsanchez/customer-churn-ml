@@ -1,0 +1,6 @@
+outs:
+- md5: e6da3496b45787fa5459c6572b60329f.dir
+  size: 279559
+  nfiles: 7
+  hash: md5
+  path: customer-churn-model

@@ -6,15 +6,13 @@ venv/
 *.egg-info/
 
 # Datos y modelos (se versionan con DVC, no con Git)
-# (data/raw/ lo maneja el .gitignore que genera `dvc add`; un patrón data/raw/*
-#  hace que DVC ignore la carpeta entera y no encuentre los .dvc)
+# (data/raw/ y models/ los maneja el .gitignore que genera `dvc add`; un patrón
+#  carpeta/* hace que DVC ignore la carpeta entera y no encuentre los .dvc)
 data/raw/*.csv
 data/processed/*
 data/reference/*
 !data/processed/.gitkeep
 !data/reference/.gitkeep
-models/*
-!models/.gitkeep
 
 # MLflow / DVC locales
 mlruns/
