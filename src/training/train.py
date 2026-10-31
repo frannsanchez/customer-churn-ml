@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 DATA_PATH = "data/raw/customer_churn_historical.csv"
 EXPERIMENT_NAME = "customer-churn"
 
-# Réplica de los 10 experimentos trabajados en el notebook exploratorio.
 MODEL_CONFIGS = [
     {
         "name": "exp1_decision_tree_base",
