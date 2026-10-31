@@ -1,4 +1,5 @@
 import argparse
+import yaml
 import mlflow
 import mlflow.sklearn
 from sklearn.pipeline import Pipeline
@@ -10,6 +11,7 @@ from src.data.crear_dataset import load_raw_data, get_train_test_indices, get_xy
 from src.features.build_features import build_preprocessor
 from src.evaluation.evaluate import compute_metrics, print_metrics, print_confusion_matrix
 import logging
+from dotenv import load_dotenv
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,6 +22,12 @@ logger = logging.getLogger(__name__)
 
 DATA_PATH = "data/raw/customer_churn_historical.csv"
 EXPERIMENT_NAME = "customer-churn"
+
+
+def get_data_version(data_path: str = DATA_PATH) -> str:
+    """Hash md5 del dataset según su archivo .dvc (identifica la versión de datos usada)."""
+    with open(f"{data_path}.dvc") as f:
+        return yaml.safe_load(f)["outs"][0]["md5"]
 
 MODEL_CONFIGS = [
     {
@@ -98,6 +106,10 @@ def train_and_log(config: dict, df, train_idx, test_idx) -> Pipeline:
     ])
 
     with mlflow.start_run(run_name=config["name"]):
+        mlflow.set_tags({
+            "data_path": DATA_PATH,
+            "data_md5": get_data_version(),
+        })
         pipeline.fit(X_train, y_train)
 
         y_pred = pipeline.predict(X_test)
@@ -142,6 +154,9 @@ def main():
     )
     args = parser.parse_args()
 
+    # Credenciales y tracking URI de DagsHub se leen del archivo .env (ver .env.example)
+    load_dotenv()
+    logger.info("MLflow tracking URI: %s", mlflow.get_tracking_uri())
     mlflow.set_experiment(EXPERIMENT_NAME)
 
     df = load_raw_data(DATA_PATH)

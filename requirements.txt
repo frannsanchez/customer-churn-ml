@@ -1,7 +1,9 @@
-dvc==3.67.1
 dvc-s3==3.3.0
+dvc==3.67.1
 mlflow==3.16.1
 numpy==2.5.3
 pandas==3.0.6
+python-dotenv==1.2.3
+pyyaml==6.0.3
 scikit-learn==1.9.1
 skops==0.15.0
