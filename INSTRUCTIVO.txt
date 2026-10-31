@@ -1,0 +1,253 @@
+===============================================================================
+  INSTRUCTIVO - Customer Churn ML (Proyecto Integrador ISTEA 2026)
+  Cómo clonar el repo y replicar todo: datos, entrenamiento, tests y API Docker
+===============================================================================
+
+Estado actual del proyecto:
+  - Dataset versionado con DVC (remote en DagsHub)
+  - 14 experimentos registrados en MLflow (DagsHub)
+  - Modelo elegido: exp12_logistic_regression_all_balanced
+    registrado como "customer-churn-model" versión 1
+  - API FastAPI con /health y /predict, 26 tests con pytest, imagen Docker
+
+Repo GitHub:  https://github.com/frannsanchez/customer-churn-ml
+Repo DagsHub: https://dagshub.com/frannsanchez/customer-churn-ml
+
+Los comandos están pensados para Linux. Las diferencias para Windows están
+marcadas con [WINDOWS].
+
+
+-------------------------------------------------------------------------------
+ 0. REQUISITOS PREVIOS (una sola vez)
+-------------------------------------------------------------------------------
+
+  a) Git
+  b) Python 3.14 (es la versión con la que se entrenó el modelo)
+       python3 --version
+  c) Docker Engine + Docker Compose
+       docker --version
+       docker compose version
+     [WINDOWS] Instalar Docker Desktop.
+     [LINUX] Si "docker" da "permission denied ... docker.sock":
+       sudo usermod -aG docker $USER
+       y después cerrar sesión y volver a entrar.
+  d) Cuenta en DagsHub, agregada como colaboradora del repo
+     (pedirle a Franco que te sume).
+  e) Un token de DagsHub:
+       dagshub.com -> avatar -> User Settings -> Tokens
+     El token es personal: NO compartirlo, NO subirlo al repo,
+     NO pegarlo en chats ni mostrarlo en el video.
+
+
+-------------------------------------------------------------------------------
+ 1. CLONAR EL REPOSITORIO
+-------------------------------------------------------------------------------
+
+  git clone https://github.com/frannsanchez/customer-churn-ml.git
+  cd customer-churn-ml
+
+
+-------------------------------------------------------------------------------
+ 2. ENTORNO VIRTUAL Y DEPENDENCIAS
+-------------------------------------------------------------------------------
+
+  python3 -m venv venv
+  source venv/bin/activate
+      [WINDOWS] venv\Scripts\activate
+
+  pip install -r requirements.txt
+
+  Nota: requirements.txt es el entorno completo (entrenamiento, DVC, MLflow
+  y tests). requirements-api.txt tiene solo lo que usa la API y es lo que
+  instala la imagen Docker.
+
+  IMPORTANTE: todos los comandos que siguen se corren con el venv activado y
+  desde la raíz del repo.
+
+
+-------------------------------------------------------------------------------
+ 3. CREDENCIALES (archivo .env + DVC)
+-------------------------------------------------------------------------------
+
+  a) MLflow (para entrenar o exportar modelos):
+
+       cp .env.example .env
+           [WINDOWS] copy .env.example .env
+
+     Abrir .env y completar:
+       MLFLOW_TRACKING_URI=https://dagshub.com/frannsanchez/customer-churn-ml.mlflow
+       MLFLOW_TRACKING_USERNAME=<tu usuario de DagsHub>
+       MLFLOW_TRACKING_PASSWORD=<tu token de DagsHub>
+
+     El .env está en el .gitignore: nunca se sube a git.
+
+  b) DVC (para bajar datos y modelo). En DagsHub, el token va como
+     access key y también como secret key:
+
+       dvc remote modify origin --local access_key_id <tu token>
+       dvc remote modify origin --local secret_access_key <tu token>
+
+     El flag --local guarda las credenciales en .dvc/config.local, que
+     tampoco se sube a git.
+
+
+-------------------------------------------------------------------------------
+ 4. DESCARGAR DATOS Y MODELO (DVC)
+-------------------------------------------------------------------------------
+
+  dvc pull
+
+  Baja dos cosas que NO están en git:
+    data/raw/customer_churn_historical.csv   -> dataset (7043 clientes)
+    models/customer-churn-model/             -> modelo v1 exportado
+
+  Verificar:
+    dvc status       -> "Data and pipelines are up to date."
+    ls models/customer-churn-model
+                     -> tiene que listar model.skops y metadata.json
+
+
+-------------------------------------------------------------------------------
+ 5. CORRER LOS TESTS
+-------------------------------------------------------------------------------
+
+  pytest
+
+  Resultado esperado: "26 passed".
+  Los tests necesitan el modelo del paso 4: si falla con FileNotFoundError,
+  falta el "dvc pull".
+
+
+-------------------------------------------------------------------------------
+ 6. LEVANTAR LA API CON DOCKER
+-------------------------------------------------------------------------------
+
+  docker compose up --build -d
+
+  --build construye la imagen y -d la deja corriendo en segundo plano.
+  Para probar sin Docker:  uvicorn app.main:app --reload
+
+  Comandos útiles:
+    docker compose ps            estado (tiene que decir "healthy")
+    docker compose logs -f       logs en vivo (Ctrl+C para salir)
+    docker compose down          detener
+    docker compose up --build -d reconstruir después de cambiar código
+
+
+-------------------------------------------------------------------------------
+ 7. PROBAR LA API
+-------------------------------------------------------------------------------
+
+  OPCIÓN A - Navegador (Swagger)
+    Abrir http://localhost:8000/docs
+
+    GET /health:
+      click en la barra -> "Try it out" -> "Execute"
+      Devuelve status "ok", la versión del modelo y el run_id de MLflow.
+
+    POST /predict:
+      click en la barra -> "Try it out"
+      Ya viene cargado un cliente de ejemplo -> "Execute"
+      Devuelve prediction, probability, risk_level, model_version y
+      request_id.
+
+    Para probar, cambiar valores del JSON:
+      "Contract": "Two year", "tenure": 60, "TotalCharges": 5000
+          -> el riesgo baja a LOW
+      "Contract": "Weekly"
+          -> error 422 (valor inválido, lo rechaza Pydantic)
+
+  OPCIÓN B - Terminal (curl)
+
+    curl http://localhost:8000/health
+
+    curl -X POST http://localhost:8000/predict \
+      -H "Content-Type: application/json" \
+      -d '{"gender":"Female","SeniorCitizen":0,"Partner":"No","Dependents":"No",
+           "tenure":2,"PhoneService":"Yes","MultipleLines":"No",
+           "InternetService":"Fiber optic","OnlineSecurity":"No",
+           "OnlineBackup":"No","DeviceProtection":"No","TechSupport":"No",
+           "StreamingTV":"Yes","StreamingMovies":"Yes",
+           "Contract":"Month-to-month","PaperlessBilling":"Yes",
+           "PaymentMethod":"Electronic check","MonthlyCharges":95.5,
+           "TotalCharges":190.2}'
+
+    [WINDOWS] En PowerShell conviene usar Swagger, porque curl maneja
+    distinto las comillas.
+
+  Niveles de riesgo (definidos sobre el set de test):
+    LOW     probabilidad < 0.40   (churn real  9%)
+    MEDIUM  0.40 a 0.70           (churn real 32%)
+    HIGH    >= 0.70               (churn real 61%, concentra el 50% de
+                                   los clientes que se van)
+  prediction = CHURN si la probabilidad es >= 0.50.
+
+
+-------------------------------------------------------------------------------
+ 8. (OPCIONAL) REENTRENAR / VER EXPERIMENTOS EN MLFLOW
+-------------------------------------------------------------------------------
+
+  Requiere el .env del paso 3a. Los runs quedan en DagsHub, en la pestaña
+  "Experiments" del repo.
+
+  Ver los runs:
+    https://dagshub.com/frannsanchez/customer-churn-ml -> Experiments
+
+  Correr un experimento puntual:
+    python -m src.training.train --experiment exp12_logistic_regression_all_balanced
+
+  Correr los 14 experimentos (crea 14 runs nuevos en DagsHub):
+    python -m src.training.train
+
+  OJO: no usar --register salvo que el equipo haya decidido cambiar de
+  modelo, porque crea una versión nueva en el Model Registry.
+
+  Cada run guarda el commit de git (mlflow.source.git.commit) y el hash del
+  dataset (data_md5). Así se rastrea con qué código y qué datos se entrenó.
+
+
+-------------------------------------------------------------------------------
+ 9. TRAZABILIDAD: DE UNA PREDICCIÓN AL CÓDIGO
+-------------------------------------------------------------------------------
+
+  Respuesta de /predict  -> model_version "1"
+  /health                -> run_id 4261771b72fa42aca608cf1fa3867b3e
+  models/customer-churn-model/metadata.json:
+      run_name    exp12_logistic_regression_all_balanced
+      git_commit  4ed5c0a...  (código con el que se entrenó)
+      data_md5    178571792c566f067e3d16b5fb913026  (versión del dataset,
+                  coincide con data/raw/customer_churn_historical.csv.dvc)
+
+  Si el equipo decide cambiar de modelo:
+    1. python -m src.training.train --experiment <nombre> --register
+    2. python -m scripts.export_model --version <nueva versión>
+    3. dvc add models/customer-churn-model && dvc push
+    4. commit de models/customer-churn-model.dvc
+
+
+-------------------------------------------------------------------------------
+ 10. PROBLEMAS FRECUENTES
+-------------------------------------------------------------------------------
+
+  "permission denied ... docker.sock"
+      Falta estar en el grupo docker (ver paso 0c) o cerrar sesión.
+      No usar "sudo docker".
+
+  "dvc pull" pide credenciales o da 403
+      Repetir el paso 3b y confirmar que tu usuario sea colaborador en
+      DagsHub.
+
+  "port is already allocated" al levantar Docker
+      El puerto 8000 está ocupado. Usar otro:
+        API_PORT=8080 docker compose up -d
+      y abrir http://localhost:8080/docs
+
+  pytest falla con FileNotFoundError en models/
+      Falta "dvc pull" (paso 4).
+
+  En http://localhost:8000/ no carga nada
+      Ir a http://localhost:8000/docs (las versiones nuevas redirigen
+      solas).
+
+  La terminal queda trabada mostrando "(END)" después de un git log
+      Es el paginador de git: apretar q.
