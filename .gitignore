@@ -6,10 +6,11 @@ venv/
 *.egg-info/
 
 # Datos y modelos (se versionan con DVC, no con Git)
-data/raw/*
+# (data/raw/ lo maneja el .gitignore que genera `dvc add`; un patrón data/raw/*
+#  hace que DVC ignore la carpeta entera y no encuentre los .dvc)
+data/raw/*.csv
 data/processed/*
 data/reference/*
-!data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/reference/.gitkeep
 models/*
