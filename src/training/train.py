@@ -132,6 +132,20 @@ MODEL_CONFIGS = [
             class_weight="balanced", random_state=RANDOM_STATE,
         ),
     },
+    {
+        "name": "exp15_random_forest_tuned",
+        "categorical_features": ALL_CATEGORICAL,
+        "numeric_features": ALL_NUMERIC,
+        "estimator": RandomForestClassifier(
+            n_estimators=200,
+            max_depth=6,
+            min_samples_leaf=10,
+            min_samples_split=5,
+            max_features="sqrt",
+            class_weight="balanced_subsample",
+            random_state=RANDOM_STATE,
+        ),
+    },
 ]
 
 
@@ -155,8 +169,9 @@ def train_and_log(config: dict, df, train_idx, test_idx, register: bool = False)
         pipeline.fit(X_train, y_train)
 
         y_pred = pipeline.predict(X_test)
-        y_prob = pipeline.predict_proba(X_test)[:, 1]
-
+        classifier = pipeline.named_steps["classifier"]
+        positive_class_index = list(classifier.classes_).index("Yes")
+        y_prob = pipeline.predict_proba(X_test)[:, positive_class_index]
         metrics = compute_metrics(y_test, y_pred, y_prob)
         print_metrics(config["name"], metrics)
         print_confusion_matrix(y_test, y_pred)
